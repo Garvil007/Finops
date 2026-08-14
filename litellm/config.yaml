@@ -1,3 +1,42 @@
 # LiteLLM proxy configuration.
-# Populated in the infrastructure phase with the model list, spend-log database
-# wiring, per-team virtual keys, and the request-tag convention.
+#
+# Every LLM call in FinOpsAI routes through this proxy, which writes a row to
+# the LiteLLM_SpendLogs table for each request. Our llm_spend collector reads
+# that table read-only.
+#
+# Cost attribution depends on the request-tag convention: callers pass
+# metadata.tags as a flat array of "key:value" strings, e.g.
+#   "metadata": {"tags": ["team:search", "agent_id:demo", "use_case:rag"]}
+# Only metadata.tags populates the SpendLogs.request_tags column; arbitrary
+# metadata keys land in the metadata JSON instead and are not attributable.
+
+model_list:
+  - model_name: gpt-4o-mini
+    litellm_params:
+      model: openai/gpt-4o-mini
+      api_key: os.environ/OPENAI_API_KEY
+
+  - model_name: claude-haiku-4-5
+    litellm_params:
+      model: anthropic/claude-haiku-4-5
+      api_key: os.environ/ANTHROPIC_API_KEY
+
+  # Offline development: answers without a provider key, still writes a spend log.
+  - model_name: mock-gpt
+    litellm_params:
+      model: openai/gpt-4o-mini
+      api_key: sk-mock-no-provider-call
+      mock_response: "This is a mock completion from the FinOpsAI offline model."
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+  database_url: os.environ/LITELLM_DATABASE_URL
+  store_model_in_db: true
+
+litellm_settings:
+  drop_params: true
+  # Prometheus callbacks are gated behind LiteLLM Enterprise in recent releases.
+  # If the proxy logs a licence warning on boot, remove these two lines: spend
+  # logs are the contract, proxy metrics are a nice-to-have.
+  success_callback: ["prometheus"]
+  failure_callback: ["prometheus"]
