@@ -40,6 +40,7 @@ dev = [
     "pre-commit>=4.0",
     "httpx>=0.28",
     "faker>=33.0",
+    "aiosqlite>=0.20",
 ]
 
 [project.urls]
@@ -79,6 +80,11 @@ warn_required_dynamic_aliases = true
 asyncio_mode = "auto"
 testpaths = ["tests"]
 addopts = "-q --cov=src/finopsai --cov-report=term-missing"
+# SQLite has no native decimal type; the warehouse runs on Postgres, where it does.
+filterwarnings = [
+    "error",
+    'ignore:Dialect sqlite\+aiosqlite.*Decimal:UserWarning',
+]
 
 [tool.coverage.run]
 branch = true

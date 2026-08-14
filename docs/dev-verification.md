@@ -133,7 +133,35 @@ The mock model may record `spend = 0` — assert on row existence and
 `request_tags`, not on a non-zero cost. Cost only becomes meaningful with a
 real provider key.
 
-## 7. Tear down
+## 7. Confirm the collector ingested it
+
+The collectors service applies migrations on start, then polls spend logs every
+60 seconds.
+
+```bash
+docker compose logs --tail=20 collectors
+```
+
+Expected: a `collector_cycle_complete` JSON line with a non-zero `written`.
+
+```bash
+docker compose exec -T postgres   psql -U "${POSTGRES_USER:-finops}" -d finopsai -c   'SELECT source, team, agent_id, use_case, model, amount_usd, quantity
+     FROM finops.cost_record
+    ORDER BY occurred_at DESC
+    LIMIT 5;'
+```
+
+**Pass condition:** a row with `team = search`, `agent_id = demo`,
+`use_case = rag`. Re-run the query after the next cycle — the row count must not
+grow, because the dedup key drops the re-read.
+
+Scrape the collector's metrics:
+
+```bash
+curl -s http://localhost:9100/metrics | grep finopsai_collector
+```
+
+## 8. Tear down
 
 ```bash
 docker compose down        # keeps data

@@ -60,6 +60,29 @@ services:
     networks:
       - finopsai
 
+  collectors:
+    build: .
+    restart: unless-stopped
+    # Migrations run here for developer convenience so `docker compose up` gives
+    # a working warehouse. In production apply them as a separate gated step.
+    command: ["sh", "-c", "alembic upgrade head && python -m finopsai.collectors"]
+    environment:
+      ENV: ${ENV:-dev}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-finops}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/finopsai
+      LITELLM_DB_URL: postgresql+asyncpg://${POSTGRES_USER:-finops}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/litellm
+      REDIS_URL: redis://redis:6379/0
+      METRICS_PORT: ${METRICS_PORT:-9100}
+    ports:
+      - "${METRICS_PORT:-9100}:9100"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      litellm-proxy:
+        condition: service_started
+    networks:
+      - finopsai
+
   # ---------------------------------------------------------------------------
   # Enabled in later phases.
   # ---------------------------------------------------------------------------
@@ -72,15 +95,6 @@ services:
   #     REDIS_URL: redis://redis:6379/0
   #   ports:
   #     - "8000:8000"
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #   networks:
-  #     - finopsai
-  #
-  # collectors:
-  #   build: .
-  #   command: ["finopsai", "collectors"]
   #   depends_on:
   #     postgres:
   #       condition: service_healthy

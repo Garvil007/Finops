@@ -43,6 +43,8 @@ class Settings(BaseSettings):
 
     redis_url: str = "redis://localhost:6379/0"
 
+    metrics_port: int = 9100
+
     litellm_base_url: str = "http://localhost:4000"
     litellm_master_key: SecretStr | None = None
 
