@@ -1,0 +1,88 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "finopsai"
+version = "0.1.0"
+description = "FinOps cost attribution platform for AI workloads"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Garvil Shah" }]
+requires-python = ">=3.12"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.12",
+    "Typing :: Typed",
+]
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "sqlalchemy[asyncio]>=2.0.36",
+    "asyncpg>=0.30",
+    "alembic>=1.14",
+    "pydantic-settings>=2.6",
+    "structlog>=24.4",
+    "httpx>=0.28",
+    "redis>=5.2",
+    "prometheus-client>=0.21",
+    "apscheduler>=3.11",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "pytest-cov>=6.0",
+    "ruff>=0.8",
+    "mypy>=1.13",
+    "pre-commit>=4.0",
+    "httpx>=0.28",
+    "faker>=33.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/Garvil007/finopsai"
+Repository = "https://github.com/Garvil007/finopsai"
+
+[project.scripts]
+finopsai = "finopsai.__main__:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/finopsai"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "SIM"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["finopsai"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
+warn_unreachable = true
+show_error_codes = true
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = "-q --cov=src/finopsai --cov-report=term-missing"
+
+[tool.coverage.run]
+branch = true
+source = ["src/finopsai"]
+
+[tool.coverage.report]
+show_missing = true

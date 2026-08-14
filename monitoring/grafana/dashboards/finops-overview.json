@@ -1,0 +1,7 @@
+{
+  "title": "FinOps Overview",
+  "uid": "finops-overview",
+  "schemaVersion": 39,
+  "panels": [],
+  "time": { "from": "now-30d", "to": "now" }
+}

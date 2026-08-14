@@ -1,0 +1,3 @@
+# LiteLLM proxy configuration.
+# Populated in the infrastructure phase with the model list, spend-log database
+# wiring, per-team virtual keys, and the request-tag convention.

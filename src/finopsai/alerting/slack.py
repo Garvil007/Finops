@@ -1,0 +1,1 @@
+"""Slack incoming-webhook notifier."""

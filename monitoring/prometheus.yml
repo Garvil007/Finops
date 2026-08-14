@@ -1,0 +1,6 @@
+# Prometheus scrape configuration.
+# Scrape targets (FinOpsAI API, cAdvisor, LiteLLM proxy) are added in the
+# infrastructure phase.
+global:
+  scrape_interval: 30s
+scrape_configs: []
