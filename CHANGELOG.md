@@ -28,3 +28,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `MockComputeCollector` and `MockVectorDBCollector`: seeded, replay-safe
   simulated infrastructure spend, each documenting the real AWS Cost Explorer
   and Pinecone implementation that replaces it.
+- Attribution engine: `aggregate_costs` groups in SQL with per-source
+  subtotals and a dimension allowlist; `unattributed_report` quantifies
+  ownerless spend and names the models and resources driving it.
+- Shared-cost allocation: `even_split`, `usage_weighted` and `fixed_percent`
+  strategies with exact largest-remainder splitting, parent/child audit
+  records, and rule precedence. See `docs/architecture/allocation.md`.

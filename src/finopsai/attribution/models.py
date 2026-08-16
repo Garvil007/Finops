@@ -13,9 +13,11 @@ from typing import Any
 
 from sqlalchemy import (
     JSON,
+    Boolean,
     DateTime,
     Enum,
     Index,
+    Integer,
     MetaData,
     Numeric,
     String,
@@ -58,6 +60,7 @@ class CostRecord(Base):
         UniqueConstraint("source", "dedup_key", name="uq_cost_record_source_dedup_key"),
         Index("ix_cost_record_occurred_at_team", "occurred_at", "team"),
         Index("ix_cost_record_source_occurred_at", "source", "occurred_at"),
+        Index("ix_cost_record_allocated", "allocated"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -79,6 +82,19 @@ class CostRecord(Base):
     use_case: Mapped[str] = mapped_column(String(128), default=UNATTRIBUTED)
 
     raw: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+
+    # Allocation of shared cost keeps both sides of the split. The parent is
+    # marked allocated and stops counting toward totals; the children carry the
+    # per-team amounts and point back at it. Nothing is ever overwritten, so a
+    # cost figure can always be traced to the record it came from.
+    allocated: Mapped[bool] = mapped_column(Boolean, default=False)
+    allocation_parent_id: Mapped[int | None] = mapped_column(Integer, default=None)
+    allocation_rule: Mapped[str | None] = mapped_column(String(64), default=None)
+
+    @property
+    def is_allocation_child(self) -> bool:
+        """True when this record was produced by splitting a shared cost."""
+        return self.allocation_parent_id is not None
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
