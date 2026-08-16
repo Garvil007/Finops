@@ -161,7 +161,45 @@ Scrape the collector's metrics:
 curl -s http://localhost:9100/metrics | grep finopsai_collector
 ```
 
-## 8. Tear down
+## 8. Generate a demo dataset
+
+Simulated compute and vector DB spend is generated automatically by the
+collectors service when `ENABLE_MOCK_COLLECTORS=true`, backfilling
+`DEMO_BACKFILL_DAYS` of history on first run. For LLM traffic:
+
+```bash
+python mock_workloads/traffic_generator.py --count 200 --rate 5
+```
+
+Live providers instead of the offline model, with a hard ceiling:
+
+```bash
+python mock_workloads/traffic_generator.py --mode live --max-spend-usd 0.25
+```
+
+Simulate a runaway agent for the budget-alerting demo:
+
+```bash
+python mock_workloads/traffic_generator.py --burst research/experiment-planner
+```
+
+Then check the spread across all three sources:
+
+```bash
+docker compose exec -T postgres   psql -U "${POSTGRES_USER:-finops}" -d finopsai -c   'SELECT source, team, round(sum(amount_usd), 4) AS usd
+     FROM finops.cost_record
+    GROUP BY 1, 2
+    ORDER BY usd DESC;'
+```
+
+**Pass condition:** `llm`, `compute` and `vectordb` rows all present, `research`
+dominating compute, and a visible `unattributed` team.
+
+> Simulated rows carry `raw->>'simulated' = 'true'` and a `mock-` dedup-key
+> prefix. To see only measured spend:
+> `WHERE raw->>'simulated' IS NULL`.
+
+## 9. Tear down
 
 ```bash
 docker compose down        # keeps data

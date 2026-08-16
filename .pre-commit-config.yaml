@@ -28,3 +28,4 @@ repos:
           - structlog>=24.4
           - sqlalchemy[asyncio]>=2.0.36
           - prometheus-client>=0.21
+          - httpx>=0.28

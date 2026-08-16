@@ -45,6 +45,11 @@ class Settings(BaseSettings):
 
     metrics_port: int = 9100
 
+    # Demo only: fabricates compute and vector DB spend so the dashboard has
+    # a story before real cost sources exist. Turn off for real deployments.
+    enable_mock_collectors: bool = True
+    demo_backfill_days: int = 14
+
     litellm_base_url: str = "http://localhost:4000"
     litellm_master_key: SecretStr | None = None
 

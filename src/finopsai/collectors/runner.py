@@ -25,7 +25,16 @@ def build_collectors(settings: Settings) -> list[BaseCollector]:
     sessions = create_session_factory(create_warehouse_engine(settings))
     litellm_engine = create_litellm_engine(settings)
 
-    return [LiteLLMSpendCollector(sessions, litellm_engine)]
+    collectors: list[BaseCollector] = [LiteLLMSpendCollector(sessions, litellm_engine)]
+
+    if settings.enable_mock_collectors:
+        from finopsai.collectors.compute import MockComputeCollector
+        from finopsai.collectors.vectordb import MockVectorDBCollector
+
+        collectors.append(MockComputeCollector(sessions, settings.demo_backfill_days))
+        collectors.append(MockVectorDBCollector(sessions, settings.demo_backfill_days))
+
+    return collectors
 
 
 async def run_collectors(

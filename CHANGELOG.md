@@ -22,3 +22,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `LiteLLMSpendCollector`: ingests `LiteLLM_SpendLogs` into `cost_record`,
   attributing spend from request tags and falling back to `unattributed`.
 - Collectors service container and multi-stage Dockerfile running as non-root.
+- Demo traffic generator: three teams with weighted volume and model mix,
+  a deliberate 10% untagged share, `--burst` for a runaway agent, and a
+  `--max-spend-usd` ceiling.
+- `MockComputeCollector` and `MockVectorDBCollector`: seeded, replay-safe
+  simulated infrastructure spend, each documenting the real AWS Cost Explorer
+  and Pinecone implementation that replaces it.
