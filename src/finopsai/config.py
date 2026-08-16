@@ -50,6 +50,15 @@ class Settings(BaseSettings):
     enable_mock_collectors: bool = True
     demo_backfill_days: int = 14
 
+    api_port: int = 8000
+    # Local Grafana and Streamlit. Narrow this for any real deployment.
+    cors_origins: str = "http://localhost:3000,http://localhost:8501"
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        """CORS origins as a list, parsed from the comma-separated setting."""
+        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+
     litellm_base_url: str = "http://localhost:4000"
     litellm_master_key: SecretStr | None = None
 

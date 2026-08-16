@@ -18,7 +18,7 @@ attributed to the teams that caused it, so counting both would double the total.
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -283,3 +283,100 @@ async def unattributed_report(
         top_resources=await _top_slices(session, CostRecord.project, period, top_n),
         by_source=by_source,
     )
+
+
+# Timestamp truncation has no portable spelling. Postgres has date_trunc; SQLite
+# has strftime. The dialect is read from the bound engine rather than assumed.
+SQLITE_TRUNC_FORMATS = {
+    "hour": "%Y-%m-%dT%H:00:00",
+    "day": "%Y-%m-%dT00:00:00",
+    "week": "%Y-%m-%dT00:00:00",
+}
+
+
+@dataclass(frozen=True)
+class TimeseriesPoint:
+    """Spend for one dimension key in one time bucket."""
+
+    bucket: datetime
+    key: Mapping[str, str]
+    amount_usd: Decimal
+
+
+def _dialect_name(session: AsyncSession) -> str:
+    """Name of the dialect backing this session."""
+    try:
+        return str(session.get_bind().dialect.name)
+    except Exception:  # noqa: BLE001 - dialect detection must never break a query
+        return "postgresql"
+
+
+def _bucket_expression(dialect: str, trunc: str) -> sa.ColumnElement[Any]:
+    """Truncate occurred_at to the requested bucket width."""
+    if trunc not in SQLITE_TRUNC_FORMATS:
+        raise ValueError(f"unknown interval {trunc!r}; expected hour, day or week")
+
+    if dialect == "sqlite":
+        if trunc == "week":
+            # SQLite has no week truncation; %W would need locale-stable
+            # week numbering, so weeks fall back to day buckets there.
+            return sa.func.strftime(SQLITE_TRUNC_FORMATS["day"], CostRecord.occurred_at)
+        return sa.func.strftime(SQLITE_TRUNC_FORMATS[trunc], CostRecord.occurred_at)
+
+    return sa.func.date_trunc(trunc, CostRecord.occurred_at)
+
+
+def _as_datetime(value: object) -> datetime:
+    """Normalize a bucket value, which is a string on SQLite."""
+    if isinstance(value, datetime):
+        return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+    parsed = datetime.fromisoformat(str(value))
+    return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=UTC)
+
+
+async def aggregate_timeseries(
+    session: AsyncSession,
+    group_by: Sequence[str],
+    period: Period,
+    trunc: str = "day",
+    filters: CostFilters | None = None,
+) -> list[TimeseriesPoint]:
+    """Spend per dimension key per time bucket, ordered oldest first.
+
+    Shaped for a dashboard: the database does the bucketing and the summing, and
+    returns one row per key per bucket.
+    """
+    active = filters or CostFilters()
+    columns = _resolve_columns(group_by)
+    bucket = _bucket_expression(_dialect_name(session), trunc).label("bucket")
+
+    query = (
+        sa.select(bucket, *columns, _amount().label("amount_usd"))
+        .where(*_conditions(period, active))
+        .group_by(bucket, *columns)
+        .order_by(bucket)
+    )
+
+    rows = (await session.execute(query)).all()
+    return [
+        TimeseriesPoint(
+            bucket=_as_datetime(row.bucket),
+            key=dict(
+                zip(
+                    group_by,
+                    (str(value) for value in row[1 : 1 + len(columns)]),
+                    strict=True,
+                )
+            ),
+            amount_usd=Decimal(row.amount_usd or 0),
+        )
+        for row in rows
+    ]
+
+
+async def total_spend(
+    session: AsyncSession, period: Period, filters: CostFilters | None = None
+) -> Decimal:
+    """Total spend in a window, after allocation."""
+    query = sa.select(_amount()).where(*_conditions(period, filters or CostFilters()))
+    return Decimal((await session.execute(query)).scalar_one() or 0)

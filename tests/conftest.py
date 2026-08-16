@@ -8,6 +8,7 @@ schema. Production keeps the real schema.
 
 from collections.abc import AsyncIterator
 
+import httpx
 import pytest
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
@@ -71,3 +72,25 @@ def insert_spend_log(litellm_engine: AsyncEngine):  # noqa: ANN201 - local helpe
             await connection.execute(sa.insert(SPEND_LOGS).values(**values))
 
     return _insert
+
+
+@pytest.fixture
+async def api_client(
+    sessions: async_sessionmaker[AsyncSession],
+) -> AsyncIterator[httpx.AsyncClient]:
+    """An HTTP client bound to the app, backed by the in-memory warehouse."""
+    from finopsai.api.deps import get_session
+    from finopsai.api.main import create_app
+
+    app = create_app(Settings(_env_file=None))
+
+    async def _override() -> AsyncIterator[AsyncSession]:
+        async with sessions() as session:
+            yield session
+
+    app.dependency_overrides[get_session] = _override
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://finopsai.test"
+    ) as client:
+        yield client

@@ -34,3 +34,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Shared-cost allocation: `even_split`, `usage_weighted` and `fixed_percent`
   strategies with exact largest-remainder splitting, parent/child audit
   records, and rule precedence. See `docs/architecture/allocation.md`.
+- REST API: grouped cost queries with period-over-period comparison,
+  the unattributed report, bucketed timeseries for dashboards, team and
+  budget CRUD, a run-rate forecast with budget breach estimation, and
+  `/healthz` / `/readyz` probes.
+- Request-id logging middleware, Prometheus HTTP metrics at `/metrics`, and
+  CORS for local Grafana and Streamlit.

@@ -13,6 +13,9 @@ python -m venv .venv && . .venv/Scripts/activate
 pip install -e ".[dev]"
 ```
 
+The API is then on <http://localhost:8000>, with interactive docs at
+<http://localhost:8000/docs>.
+
 Verify the cost-capture path end to end: [docs/dev-verification.md](docs/dev-verification.md).
 
 ## Status

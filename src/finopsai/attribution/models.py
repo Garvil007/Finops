@@ -108,3 +108,41 @@ class CollectorWatermark(Base):
     last_occurred_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     last_cursor: Mapped[str | None] = mapped_column(String(255), default=None)
     last_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+
+
+class Team(Base):
+    """A cost owner. Rows here are the teams budgets and reports refer to."""
+
+    __tablename__ = "team"
+
+    name: Mapped[str] = mapped_column(String(128), primary_key=True)
+    display_name: Mapped[str | None] = mapped_column(String(255), default=None)
+    slack_channel: Mapped[str | None] = mapped_column(String(128), default=None)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class BudgetPeriod(StrEnum):
+    """How often a budget resets."""
+
+    MONTHLY = "monthly"
+    WEEKLY = "weekly"
+    DAILY = "daily"
+
+
+class Budget(Base):
+    """A spend ceiling for one team over one recurring period."""
+
+    __tablename__ = "budget"
+    __table_args__ = (UniqueConstraint("team", "period", name="uq_budget_team_period"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    team: Mapped[str] = mapped_column(String(128))
+    period: Mapped[BudgetPeriod] = mapped_column(
+        Enum(BudgetPeriod, native_enum=False, length=16, validate_strings=True),
+        default=BudgetPeriod.MONTHLY,
+    )
+    limit_usd: Mapped[Decimal] = mapped_column(MONEY)
+    # Percentages of the limit at which an alert fires.
+    alert_thresholds: Mapped[list[int]] = mapped_column(JSON, default=lambda: [80, 100])
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
