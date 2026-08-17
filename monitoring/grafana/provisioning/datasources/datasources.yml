@@ -1,0 +1,32 @@
+# Grafana datasource provisioning.
+#
+# Two datasources on purpose. Prometheus drives the live panels -- budget
+# utilisation, collector lag -- because those are gauges that only mean anything
+# right now. Postgres drives every panel that shows money, because a counter
+# that resets on restart cannot be reconciled against an invoice.
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    uid: finops-prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    jsonData:
+      timeInterval: 30s
+
+  - name: FinOpsAI Warehouse
+    uid: finops-postgres
+    type: postgres
+    access: proxy
+    url: postgres:5432
+    user: ${POSTGRES_USER}
+    database: finopsai
+    secureJsonData:
+      password: ${POSTGRES_PASSWORD}
+    jsonData:
+      sslmode: disable
+      postgresVersion: 1600
+      timescaledb: false

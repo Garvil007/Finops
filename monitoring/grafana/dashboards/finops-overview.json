@@ -1,7 +1,310 @@
 {
-  "title": "FinOps Overview",
   "uid": "finops-overview",
+  "title": "FinOpsAI Overview",
+  "description": "Consolidated AI spend: what it costs, who owns it, and where it is heading. Money comes from Postgres because Prometheus counters reset on restart; live gauges come from Prometheus.",
+  "tags": ["finops", "cost", "ai"],
+  "timezone": "utc",
   "schemaVersion": 39,
-  "panels": [],
-  "time": { "from": "now-30d", "to": "now" }
+  "version": 1,
+  "refresh": "1m",
+  "editable": true,
+  "time": { "from": "now-30d", "to": "now" },
+  "templating": { "list": [] },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Total AI spend this month",
+      "description": "Every source combined, month to date, with the change against the whole of last month.",
+      "datasource": { "type": "postgres", "uid": "finops-postgres" },
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 0 },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "orientation": "horizontal"
+      },
+      "fieldConfig": {
+        "defaults": { "unit": "currencyUSD", "decimals": 2, "color": { "mode": "fixed", "fixedColor": "text" } },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "vs last month %" },
+            "properties": [
+              { "id": "unit", "value": "percent" },
+              { "id": "decimals", "value": 1 },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "green", "value": null },
+                    { "color": "orange", "value": 10 },
+                    { "color": "red", "value": 25 }
+                  ]
+                }
+              },
+              { "id": "color", "value": { "mode": "thresholds" } }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT coalesce(sum(amount_usd), 0) AS \"Month to date\"\nFROM finops.cost_record\nWHERE allocated = false\n  AND occurred_at >= date_trunc('month', now());"
+        },
+        {
+          "refId": "B",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT round(100.0 * (curr - prev) / NULLIF(prev, 0), 1) AS \"vs last month %\"\nFROM (\n  SELECT\n    coalesce(sum(amount_usd) FILTER (WHERE occurred_at >= date_trunc('month', now())), 0) AS curr,\n    coalesce(sum(amount_usd) FILTER (\n      WHERE occurred_at >= date_trunc('month', now()) - interval '1 month'\n        AND occurred_at <  date_trunc('month', now())\n    ), 0) AS prev\n  FROM finops.cost_record\n  WHERE allocated = false\n) t;"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "bargauge",
+      "title": "Budget utilisation by team",
+      "description": "Live from the alert evaluator. Yellow at 80%, red once the budget is spent.",
+      "datasource": { "type": "prometheus", "uid": "finops-prometheus" },
+      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 0 },
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "showUnfilled": true,
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1.5,
+          "decimals": 0,
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.8 },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "finopsai_budget_utilization",
+          "legendFormat": "{{team}}",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "piechart",
+      "title": "Spend by source",
+      "description": "Tokens are the visible tip. This panel is the argument: compute, vector DB and infrastructure are the rest of the bill.",
+      "datasource": { "type": "postgres", "uid": "finops-postgres" },
+      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 0 },
+      "options": {
+        "displayLabels": ["percent"],
+        "legend": { "displayMode": "table", "placement": "right", "values": ["value"] },
+        "pieType": "donut",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": true }
+      },
+      "fieldConfig": {
+        "defaults": { "unit": "currencyUSD", "decimals": 2, "color": { "mode": "palette-classic" } },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT source AS metric, sum(amount_usd) AS value\nFROM finops.cost_record\nWHERE $__timeFilter(occurred_at)\n  AND allocated = false\nGROUP BY source\nORDER BY value DESC;"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Spend by team",
+      "description": "Stacked so the total is readable and each owner's share is visible. Allocated shared cost is counted on the child records, never twice.",
+      "datasource": { "type": "postgres", "uid": "finops-postgres" },
+      "gridPos": { "h": 9, "w": 16, "x": 0, "y": 6 },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "right", "calcs": ["sum"] },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 2,
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 70,
+            "lineWidth": 0,
+            "stacking": { "mode": "normal", "group": "A" },
+            "axisLabel": "USD"
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  $__timeGroupAlias(occurred_at, $__interval),\n  team AS metric,\n  sum(amount_usd) AS value\nFROM finops.cost_record\nWHERE $__timeFilter(occurred_at)\n  AND allocated = false\nGROUP BY 1, team\nORDER BY 1;"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "table",
+      "title": "Forecast: projected month end by team",
+      "description": "Month-to-date spend extrapolated at the observed run rate. Straight line, no seasonality -- early in a month it is extrapolating from very little.",
+      "datasource": { "type": "postgres", "uid": "finops-postgres" },
+      "gridPos": { "h": 9, "w": 8, "x": 16, "y": 6 },
+      "options": { "showHeader": true, "sortBy": [{ "displayName": "Projected month end", "desc": true }] },
+      "fieldConfig": {
+        "defaults": { "unit": "currencyUSD", "decimals": 2, "custom": { "align": "right" } },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Team" },
+            "properties": [{ "id": "unit", "value": "string" }, { "id": "custom.align", "value": "left" }]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH mtd AS (\n  SELECT team, sum(amount_usd) AS spend\n  FROM finops.cost_record\n  WHERE allocated = false\n    AND occurred_at >= date_trunc('month', now())\n  GROUP BY team\n),\nclock AS (\n  SELECT\n    GREATEST(\n      EXTRACT(EPOCH FROM (now() - date_trunc('month', now()))) / 86400.0,\n      0.0417\n    ) AS elapsed_days,\n    EXTRACT(\n      EPOCH FROM ((date_trunc('month', now()) + interval '1 month') - date_trunc('month', now()))\n    ) / 86400.0 AS total_days\n)\nSELECT\n  mtd.team AS \"Team\",\n  round(mtd.spend, 2) AS \"Spend to date\",\n  round(mtd.spend / clock.elapsed_days * clock.total_days, 2) AS \"Projected month end\"\nFROM mtd CROSS JOIN clock\nORDER BY 3 DESC;"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Unattributed spend (tagging debt)",
+      "description": "Spend that reached the warehouse with no owning team. Not an error -- this is the number that justifies the project. It should trend down as tagging improves.",
+      "datasource": { "type": "postgres", "uid": "finops-postgres" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 15 },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "single", "sort": "none" }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 2,
+          "color": { "mode": "fixed", "fixedColor": "orange" },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 25,
+            "lineWidth": 2,
+            "showPoints": "never",
+            "axisLabel": "USD"
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  $__timeGroupAlias(occurred_at, $__interval),\n  sum(amount_usd) AS \"Unattributed\"\nFROM finops.cost_record\nWHERE $__timeFilter(occurred_at)\n  AND allocated = false\n  AND team = 'unattributed'\nGROUP BY 1\nORDER BY 1;"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "table",
+      "title": "Cost per 1K tokens by model",
+      "description": "Efficiency, not volume. A model can be cheap per token and still dominate the bill, which is what the driver table shows.",
+      "datasource": { "type": "postgres", "uid": "finops-postgres" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 15 },
+      "options": { "showHeader": true, "sortBy": [{ "displayName": "USD per 1K tokens", "desc": true }] },
+      "fieldConfig": {
+        "defaults": { "custom": { "align": "right" } },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Model" },
+            "properties": [{ "id": "custom.align", "value": "left" }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "USD per 1K tokens" },
+            "properties": [{ "id": "unit", "value": "currencyUSD" }, { "id": "decimals", "value": 6 }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Spend (USD)" },
+            "properties": [{ "id": "unit", "value": "currencyUSD" }, { "id": "decimals", "value": 2 }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Tokens" },
+            "properties": [{ "id": "unit", "value": "short" }]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  model AS \"Model\",\n  round(sum(amount_usd) / NULLIF(sum(quantity), 0) * 1000, 6) AS \"USD per 1K tokens\",\n  round(sum(quantity), 0) AS \"Tokens\",\n  round(sum(amount_usd), 2) AS \"Spend (USD)\"\nFROM finops.cost_record\nWHERE $__timeFilter(occurred_at)\n  AND allocated = false\n  AND unit = 'tokens'\n  AND model IS NOT NULL\nGROUP BY model\nHAVING sum(quantity) > 0\nORDER BY 2 DESC;"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "table",
+      "title": "Top 10 cost drivers",
+      "description": "The single most actionable panel: the model or resource, its team, and what it cost. Untagged spend appears with team 'unattributed'.",
+      "datasource": { "type": "postgres", "uid": "finops-postgres" },
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 23 },
+      "options": { "showHeader": true, "sortBy": [{ "displayName": "Spend (USD)", "desc": true }] },
+      "fieldConfig": {
+        "defaults": { "custom": { "align": "left" } },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Spend (USD)" },
+            "properties": [
+              { "id": "unit", "value": "currencyUSD" },
+              { "id": "decimals", "value": 2 },
+              { "id": "custom.align", "value": "right" },
+              { "id": "custom.cellOptions", "value": { "type": "color-background", "mode": "gradient" } },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "transparent", "value": null },
+                    { "color": "orange", "value": 100 },
+                    { "color": "red", "value": 500 }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  coalesce(model, project) AS \"Driver\",\n  source AS \"Source\",\n  team AS \"Team\",\n  round(sum(amount_usd), 2) AS \"Spend (USD)\"\nFROM finops.cost_record\nWHERE $__timeFilter(occurred_at)\n  AND allocated = false\nGROUP BY 1, 2, 3\nORDER BY 4 DESC\nLIMIT 10;"
+        }
+      ]
+    }
+  ]
 }

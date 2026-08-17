@@ -48,3 +48,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   drivers, a forecast line, and a dashboard link. Logs a warning instead of
   sending when no webhook is configured.
 - Metrics: `finopsai_budget_utilization` gauge and `finopsai_alerts_fired_total`.
+- Consolidated Prometheus surface: `finopsai_cost_usd_total{source,team}`,
+  `finopsai_unattributed_usd_total`, `finopsai_collector_lag_seconds`, plus
+  the existing collector, budget and HTTP metrics, all defined in one module.
+- Prometheus and Grafana services with provisioned datasources and an
+  auto-loaded `FinOpsAI Overview` dashboard: month-to-date spend, spend by
+  team and source, top cost drivers, budget utilisation, the unattributed
+  trend, cost per 1K tokens, and a month-end forecast.
+- `docs/demo-script.md`: a timed three-minute walkthrough.

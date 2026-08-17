@@ -15,12 +15,16 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from finopsai.attribution.models import CollectorWatermark, CostRecord, CostSource
+from finopsai.attribution.tags import UNATTRIBUTED
 from finopsai.logging import get_logger
 from finopsai.metrics import (
+    COLLECTOR_LAG_SECONDS,
     COLLECTOR_RECORDS,
     COLLECTOR_RUNS,
+    COST_USD,
     STATUS_ERROR,
     STATUS_SUCCESS,
+    UNATTRIBUTED_USD,
 )
 
 DEFAULT_INTERVAL_SECONDS = 300.0
@@ -96,6 +100,7 @@ class BaseCollector(ABC):
 
         COLLECTOR_RUNS.labels(collector=self.name, status=STATUS_SUCCESS).inc()
         COLLECTOR_RECORDS.labels(collector=self.name).inc(written)
+        self._observe_cost(records)
         self._log.info(
             "collector_cycle_complete",
             collected=len(records),
@@ -103,6 +108,26 @@ class BaseCollector(ABC):
             duplicates=len(records) - written,
         )
         return written
+
+    def _observe_cost(self, records: list[CostRecord]) -> None:
+        """Publish ingested spend and how far behind the source we are.
+
+        Counters here are for live panels and alerting only. They reset when the
+        process restarts, so any figure that has to reconcile comes from the
+        warehouse rather than from Prometheus.
+        """
+        if not records:
+            return
+
+        for record in records:
+            amount = float(record.amount_usd)
+            COST_USD.labels(source=str(record.source), team=record.team).inc(amount)
+            if record.team == UNATTRIBUTED:
+                UNATTRIBUTED_USD.inc(amount)
+
+        newest = max(record.occurred_at for record in records)
+        lag = (datetime.now(UTC) - newest).total_seconds()
+        COLLECTOR_LAG_SECONDS.labels(collector=self.name).set(max(lag, 0.0))
 
     async def run_forever(self, stop: asyncio.Event | None = None) -> None:
         """Run cycles on the configured interval until stopped or cancelled."""

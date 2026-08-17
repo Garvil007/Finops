@@ -16,7 +16,13 @@ pip install -e ".[dev]"
 The API is then on <http://localhost:8000>, with interactive docs at
 <http://localhost:8000/docs>.
 
-Verify the cost-capture path end to end: [docs/dev-verification.md](docs/dev-verification.md).
+Grafana is on <http://localhost:3000> with the FinOpsAI Overview dashboard
+provisioned and anonymous viewing enabled; Prometheus is on
+<http://localhost:9090>.
+
+- Demo walkthrough: [docs/demo-script.md](docs/demo-script.md)
+- Verify the cost-capture path: [docs/dev-verification.md](docs/dev-verification.md)
+- Shared-cost allocation: [docs/architecture/allocation.md](docs/architecture/allocation.md)
 
 ## Status
 

@@ -1,0 +1,16 @@
+# Grafana dashboard provisioning: load everything in the mounted folder at
+# startup so a demo needs no manual import.
+
+apiVersion: 1
+
+providers:
+  - name: FinOpsAI
+    orgId: 1
+    folder: FinOpsAI
+    type: file
+    disableDeletion: false
+    allowUiUpdates: true
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

@@ -116,32 +116,51 @@ services:
     networks:
       - finopsai
 
-  # ---------------------------------------------------------------------------
-  # Enabled in later phases.
-  # ---------------------------------------------------------------------------
-  # prometheus:
-  #   image: prom/prometheus:latest
-  #   volumes:
-  #     - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-  #   ports:
-  #     - "9090:9090"
-  #   networks:
-  #     - finopsai
-  #
-  # grafana:
-  #   image: grafana/grafana:latest
-  #   volumes:
-  #     - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
-  #     - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
-  #     - grafana_data:/var/lib/grafana
-  #   ports:
-  #     - "3000:3000"
-  #   networks:
-  #     - finopsai
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=30d
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    networks:
+      - finopsai
+
+  grafana:
+    image: grafana/grafana:11.5.1
+    restart: unless-stopped
+    environment:
+      # Anonymous viewing so the demo needs no login. Never do this on anything
+      # reachable from outside a laptop.
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_DEFAULT_THEME: dark
+      # Consumed by the provisioned Postgres datasource.
+      POSTGRES_USER: ${POSTGRES_USER:-finops}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      prometheus:
+        condition: service_started
+    networks:
+      - finopsai
 
 volumes:
   postgres_data:
-  # grafana_data:
+  prometheus_data:
+  grafana_data:
 
 networks:
   finopsai:
