@@ -71,6 +71,11 @@ plugins = ["pydantic.mypy"]
 warn_unreachable = true
 show_error_codes = true
 
+[[tool.mypy.overrides]]
+# APScheduler ships no py.typed marker; the scheduler call sites stay annotated.
+module = ["apscheduler.*"]
+ignore_missing_imports = true
+
 [tool.pydantic-mypy]
 init_forbid_extra = true
 init_typed = true

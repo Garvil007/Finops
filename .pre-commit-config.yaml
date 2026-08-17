@@ -31,3 +31,5 @@ repos:
           - httpx>=0.28
           - fastapi>=0.115
           - starlette>=0.41
+          - redis>=5.2
+          - apscheduler>=3.11

@@ -40,3 +40,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `/healthz` / `/readyz` probes.
 - Request-id logging middleware, Prometheus HTTP metrics at `/metrics`, and
   CORS for local Grafana and Streamlit.
+- Budget alerting: a scheduled evaluator compares period-to-date spend
+  against each active budget, announcing a threshold once per period and
+  escalating when a higher one is crossed. State lives in Redis and is keyed
+  by month, so rollover needs no reset job.
+- Slack Block Kit alerts carrying a utilisation bar, the top three cost
+  drivers, a forecast line, and a dashboard link. Logs a warning instead of
+  sending when no webhook is configured.
+- Metrics: `finopsai_budget_utilization` gauge and `finopsai_alerts_fired_total`.

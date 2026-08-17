@@ -73,10 +73,15 @@ services:
       LITELLM_DB_URL: postgresql+asyncpg://${POSTGRES_USER:-finops}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/litellm
       REDIS_URL: redis://redis:6379/0
       METRICS_PORT: ${METRICS_PORT:-9100}
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
+      ALERT_INTERVAL_MINUTES: ${ALERT_INTERVAL_MINUTES:-15}
+      GRAFANA_DASHBOARD_URL: ${GRAFANA_DASHBOARD_URL:-}
     ports:
       - "${METRICS_PORT:-9100}:9100"
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       litellm-proxy:
         condition: service_started

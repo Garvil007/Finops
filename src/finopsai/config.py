@@ -51,6 +51,8 @@ class Settings(BaseSettings):
     demo_backfill_days: int = 14
 
     api_port: int = 8000
+    alert_interval_minutes: int = 15
+    grafana_dashboard_url: str | None = None
     # Local Grafana and Streamlit. Narrow this for any real deployment.
     cors_origins: str = "http://localhost:3000,http://localhost:8501"
 
