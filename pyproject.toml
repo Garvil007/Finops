@@ -84,7 +84,7 @@ warn_required_dynamic_aliases = true
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
-addopts = "-q --cov=src/finopsai --cov-report=term-missing"
+addopts = "-q --cov=src/finopsai --cov-report=term-missing --cov-fail-under=80"
 # SQLite has no native decimal type; the warehouse runs on Postgres, where it does.
 filterwarnings = [
     "error",

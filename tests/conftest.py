@@ -6,6 +6,7 @@ no concept of, so every engine carries a schema translation to the default
 schema. Production keeps the real schema.
 """
 
+import os
 from collections.abc import AsyncIterator
 
 import httpx
@@ -13,7 +14,7 @@ import pytest
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from sqlalchemy.ext.asyncio import create_async_engine as _create_async_engine
-from sqlalchemy.pool import StaticPool
+from sqlalchemy.pool import NullPool, StaticPool
 
 from finopsai.attribution.models import SCHEMA, Base
 from finopsai.collectors.litellm_spend import SPEND_LOGS
@@ -94,3 +95,36 @@ async def api_client(
         transport=httpx.ASGITransport(app=app), base_url="http://finopsai.test"
     ) as client:
         yield client
+
+
+POSTGRES_URL_ENV = "FINOPSAI_TEST_POSTGRES_URL"
+
+requires_postgres = pytest.mark.skipif(
+    not os.environ.get(POSTGRES_URL_ENV),
+    reason=f"set {POSTGRES_URL_ENV} to run the Postgres compatibility suite",
+)
+
+
+@pytest.fixture
+async def postgres_sessions() -> AsyncIterator[async_sessionmaker[AsyncSession]]:
+    """Sessions bound to a real Postgres, for the dialect-specific paths.
+
+    The rest of the suite runs on SQLite, which has no schemas, no date_trunc and
+    no exact numeric type. Anything that depends on those is verified here or not
+    at all.
+    """
+    url = os.environ.get(POSTGRES_URL_ENV)
+    if not url:
+        pytest.skip(f"{POSTGRES_URL_ENV} is not set")
+
+    engine = _create_async_engine(url, poolclass=NullPool)
+    async with engine.begin() as connection:
+        await connection.execute(sa.text(f'CREATE SCHEMA IF NOT EXISTS "{SCHEMA}"'))
+        await connection.run_sync(Base.metadata.create_all)
+        # A fresh table per test keeps assertions independent of ordering.
+        await connection.execute(
+            sa.text(f"TRUNCATE {SCHEMA}.cost_record, {SCHEMA}.budget RESTART IDENTITY CASCADE")
+        )
+
+    yield async_sessionmaker(engine, expire_on_commit=False)
+    await engine.dispose()

@@ -1,18 +1,21 @@
 ## What
 
-<!-- One paragraph: what changed and why. -->
+<!-- One paragraph: what this change does. -->
 
-## How
+## Why
 
-<!-- Key implementation decisions worth reviewing. -->
+<!-- The problem, or the behaviour that was wrong. Link the issue if there is one. -->
 
-## Test plan
+## How it was tested
+
+<!-- Be specific. "Ran the tests" is not a test plan; name what you exercised. -->
 
 - [ ] `ruff check .` and `ruff format --check .`
 - [ ] `mypy src/`
-- [ ] `pytest` (coverage stays above 80% on touched core logic)
-- [ ] Manual verification steps:
+- [ ] `pytest` (coverage gate at 80% passes)
+- [ ] Postgres suite, if this touches SQL: `pytest tests/integration/test_postgres_compat.py`
+- [ ] Manual verification:
 
-## Notes
+## Notes for the reviewer
 
-<!-- Migrations, config changes, follow-up work. -->
+<!-- Migrations, config changes, anything deliberately left out, follow-up work. -->

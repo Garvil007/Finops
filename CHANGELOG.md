@@ -7,52 +7,79 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-08-22
+
+First working end-to-end slice: spend is captured, attributed, queryable,
+alerted on, and visualised.
+
 ### Added
 
-- Project scaffold: `src/` layout, packaging, lint, typecheck, test, and CI tooling.
-- Docker Compose stack: Postgres 16 (LiteLLM + FinOpsAI databases), Redis 7, and
-  the LiteLLM proxy as the LLM cost-capture point.
-- Alembic migrations scoped to the `finops` schema, isolated from LiteLLM's
-  Prisma-managed tables.
-- Developer verification runbook proving tagged spend logs reach Postgres.
-- Cost warehouse schema: `cost_record` (unique on source + dedup key) and
-  `collector_watermark`.
+#### Cost capture
+- Docker Compose stack: Postgres 16 hosting both the LiteLLM spend-log database
+  and the FinOpsAI warehouse, Redis, and the LiteLLM proxy as the LLM
+  cost-capture point.
+- `LiteLLMSpendCollector` reads `LiteLLM_SpendLogs` read-only from an inclusive
+  watermark window, deduplicating on `(source, dedup_key)` so a replayed or
+  overlapping read cannot double-count spend.
 - `BaseCollector`: supervised run loop with per-cycle error isolation,
-  transactional dedup, watermark advance, and Prometheus counters.
-- `LiteLLMSpendCollector`: ingests `LiteLLM_SpendLogs` into `cost_record`,
-  attributing spend from request tags and falling back to `unattributed`.
-- Collectors service container and multi-stage Dockerfile running as non-root.
-- Demo traffic generator: three teams with weighted volume and model mix,
-  a deliberate 10% untagged share, `--burst` for a runaway agent, and a
-  `--max-spend-usd` ceiling.
-- `MockComputeCollector` and `MockVectorDBCollector`: seeded, replay-safe
-  simulated infrastructure spend, each documenting the real AWS Cost Explorer
-  and Pinecone implementation that replaces it.
-- Attribution engine: `aggregate_costs` groups in SQL with per-source
-  subtotals and a dimension allowlist; `unattributed_report` quantifies
-  ownerless spend and names the models and resources driving it.
-- Shared-cost allocation: `even_split`, `usage_weighted` and `fixed_percent`
-  strategies with exact largest-remainder splitting, parent/child audit
-  records, and rule precedence. See `docs/architecture/allocation.md`.
-- REST API: grouped cost queries with period-over-period comparison,
-  the unattributed report, bucketed timeseries for dashboards, team and
-  budget CRUD, a run-rate forecast with budget breach estimation, and
-  `/healthz` / `/readyz` probes.
-- Request-id logging middleware, Prometheus HTTP metrics at `/metrics`, and
-  CORS for local Grafana and Streamlit.
-- Budget alerting: a scheduled evaluator compares period-to-date spend
-  against each active budget, announcing a threshold once per period and
-  escalating when a higher one is crossed. State lives in Redis and is keyed
-  by month, so rollover needs no reset job.
-- Slack Block Kit alerts carrying a utilisation bar, the top three cost
-  drivers, a forecast line, and a dashboard link. Logs a warning instead of
-  sending when no webhook is configured.
-- Metrics: `finopsai_budget_utilization` gauge and `finopsai_alerts_fired_total`.
-- Consolidated Prometheus surface: `finopsai_cost_usd_total{source,team}`,
-  `finopsai_unattributed_usd_total`, `finopsai_collector_lag_seconds`, plus
-  the existing collector, budget and HTTP metrics, all defined in one module.
+  transactional dedup and watermark advance, and Prometheus instrumentation.
+- `MockComputeCollector` and `MockVectorDBCollector` generate seeded, replay-safe
+  simulated infrastructure spend, each documenting the AWS Cost Explorer and
+  Pinecone implementation that would replace it behind the same interface.
+
+#### Attribution
+- Cost warehouse schema in a dedicated `finops` schema, isolated from LiteLLM's
+  Prisma-managed tables.
+- Request-tag parsing with a `key:value` convention; spend with no usable tag is
+  attributed to `unattributed` rather than dropped.
+- `aggregate_costs` groups in SQL with per-source subtotals and a dimension
+  allowlist; `unattributed_report` quantifies ownerless spend and names the
+  models and resources driving it.
+- Shared-cost allocation with `even_split`, `usage_weighted` and `fixed_percent`
+  strategies. Splits are exact to the last unit via largest-remainder
+  distribution, and the parent record is retained for audit while its children
+  carry the money. See [docs/architecture/allocation.md](docs/architecture/allocation.md).
+
+#### API
+- REST API with grouped cost queries and period-over-period comparison, the
+  unattributed report, bucketed timeseries, team and budget CRUD, a run-rate
+  forecast with budget breach estimation, and `/healthz` / `/readyz` probes.
+- OpenAPI documentation with per-schema examples, served at `/docs`.
+- Request-id logging middleware and Prometheus HTTP metrics.
+
+#### Alerting
+- Scheduled budget evaluator comparing period-to-date spend against each active
+  budget. A threshold announces once per period and escalates when a higher one
+  is crossed; state lives in Redis keyed by month, so rollover needs no reset job.
+- Slack Block Kit alerts carrying a utilisation bar, the top three cost drivers,
+  a forecast line, and a dashboard link. Logs a warning rather than failing when
+  no webhook is configured.
+
+#### Observability
+- Consolidated Prometheus metrics: cost ingested, unattributed spend, collector
+  runs and lag, budget utilisation, alerts fired, and HTTP request metrics.
 - Prometheus and Grafana services with provisioned datasources and an
-  auto-loaded `FinOpsAI Overview` dashboard: month-to-date spend, spend by
-  team and source, top cost drivers, budget utilisation, the unattributed
-  trend, cost per 1K tokens, and a month-end forecast.
-- `docs/demo-script.md`: a timed three-minute walkthrough.
+  auto-loaded eight-panel `FinOpsAI Overview` dashboard.
+
+#### Project
+- `src/` layout, `mypy --strict`, `ruff`, `pytest` with an 80% coverage gate,
+  and pre-commit hooks.
+- GitHub Actions: lint, typecheck, test against a Postgres service container
+  with migration round-trip verification, and a Docker build with a smoke test.
+- Multi-stage image running as a non-root user with a healthcheck, published to
+  GHCR on a `v*` tag.
+- Demo traffic generator simulating three teams with weighted volume and model
+  mix, a deliberate untagged share, and a `--burst` mode for the alerting demo.
+- Runbooks: [demo script](docs/demo-script.md),
+  [verification](docs/dev-verification.md), [dev setup](docs/dev-setup.md).
+
+### Known limitations
+- `split_amount` rejects negative amounts, so cloud credits and refunds are not
+  yet supported.
+- Only monthly budgets are evaluated; weekly and daily are stored but skipped.
+- Compute and vector DB costs are simulated. The real collectors are documented
+  but unimplemented.
+- Week bucketing in timeseries degrades to daily on SQLite; Postgres is correct.
+
+[Unreleased]: https://github.com/Garvil007/Finops/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/Garvil007/Finops/releases/tag/v0.1.0

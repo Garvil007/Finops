@@ -1,6 +1,6 @@
 ---
 name: Bug report
-about: Report incorrect behavior
+about: Report incorrect behaviour
 labels: bug
 ---
 
@@ -14,12 +14,13 @@ labels: bug
 
 ## Environment
 
-- FinOpsAI version:
+- FinOpsAI version or commit:
 - Python version:
-- Deployment: docker compose / local
+- Deployment: docker compose / local / other
 
 ## Logs
 
+<!-- Structured JSON log lines are the most useful thing here. Redact secrets. -->
+
 ```
-paste relevant JSON log lines, with secrets redacted
 ```

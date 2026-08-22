@@ -1,9 +1,37 @@
+# Version control and CI
 .git/
+.github/
+.gitattributes
+.gitignore
+
+# Local environments and caches
 .venv/
+venv/
 __pycache__/
+*.py[cod]
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.coverage
+.coverage.*
 htmlcov/
+coverage.xml
+junit.xml
+
+# Secrets must never enter the build context
 .env
+.env.*
+!.env.example
+
+# Not needed at runtime
 tests/
+docs/
+monitoring/
+mock_workloads/
+scripts/
+litellm/
+docker/
+docker-compose.yml
+CHANGELOG.md
+CONTRIBUTING.md
+LICENSE
